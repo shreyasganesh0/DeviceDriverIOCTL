@@ -9,7 +9,7 @@
 
 
 static struct file_operations my_fops {
-	.owner = THIS_MODULE,
+    .owner = THIS_MODULE,
     .open = my_open,
     .read = my_read,
     .write = my_write,
@@ -31,7 +31,7 @@ static int my_ioctl(struct inode *inode, struct file *flip, unsigned int cmd, un
         case ASP_CLEAR_BUF:
             {
 
-
+	
                 char *tmpptr = dev->ramdisk;
                 for (int i = 0; i < dev->ramsize; i++) {
 
@@ -103,7 +103,7 @@ cleanup:
     class_destory(dev_class);
     kfree(mycdev);
 
-	return -1;
+    return -1;
 }
 
 static inline void cleanup_resources() {
