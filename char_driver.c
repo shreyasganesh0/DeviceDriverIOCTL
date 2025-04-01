@@ -4,11 +4,11 @@
 #include <linux/init.h>		/* module_init, module_exit */
 #include <linux/slab.h>		/* kmalloc */
 #include <linux/cdev.h>		/* cdev utilities */
+#include <linux/semaphore.h>
 
 #include "defines.h"
 
-
-static struct file_operations my_fops {
+static struct file_operations my_fops = {
     .owner = THIS_MODULE,
     .open = my_open,
     .read = my_read,
@@ -18,7 +18,7 @@ static struct file_operations my_fops {
     .llseek = my_lseek
 };
 
-static int my_ioctl(struct inode *inode, struct file *flip, unsigned int cmd, unsigned long arg) {
+static long my_ioctl(struct file *flip, unsigned int cmd, unsigned long arg) {
 
     if (_IOC_TYPE(cmd) != ASP_IOC_MAGIC) return -ENOTTY;
     if (_IOC_NR(cmd) > ASP_IOC_MAXNR) return -ENOTTY;
@@ -31,7 +31,6 @@ static int my_ioctl(struct inode *inode, struct file *flip, unsigned int cmd, un
         case ASP_CLEAR_BUF:
             {
 
-	
                 char *tmpptr = dev->ramdisk;
                 for (int i = 0; i < dev->ramsize; i++) {
 
@@ -61,19 +60,19 @@ static int __init my_init(void) {
 
     mycdev = kmalloc(numdevices * sizeof(struct asp_mycdev), GFP_KERNEL); 
 
-    dev_class = class_create(THIS_MODULE, "my_dev_class");
+    dev_class = class_create("my_dev_class");
     if (IS_ERR(dev_class)) {
 
-        unregister_chrdev(major_number, MYDEV_NAME);
+        unregister_chrdev(majorno, MYDEV_NAME);
         pr_err("Failed to register device class\n");
         return PTR_ERR(dev_class);
     }
 
     for (int i = 0; i < numdevices; i++) {//create nodes loop
 
-       mycdev[i].dev_no = MKDEV(major_number, i); 
+       mycdev[i].dev_no = MKDEV(majorno, i); 
 
-       struct device dev = device_create(device_class, NULL, mycdev[i].dev_no, NULL, "DEV_PATH%d", i);
+       struct device *dev = device_create(dev_class, NULL, mycdev[i].dev_no, NULL, "DEV_PATH%d", i);
        if (IS_ERR(dev)) {
 
            clean_count = i;
@@ -84,12 +83,12 @@ static int __init my_init(void) {
 
     for (int i = 0; i < numdevices; i++) {
 
-        my_cdev[i].ramsize = size; 
-        my_cdev[i].ramdisk = kmalloc(size, GFP_KERNEL);
+        mycdev[i].ramsize = size; 
+        mycdev[i].ramdisk = kmalloc(size, GFP_KERNEL);
 
-        cdev_init(&my_cdev[i].dev, &my_fops);
-        register_chrdev_region(my_cdev[i].dev_no, count, MYDEV_NAME);
-        cdev_add(&my_cdev[i].dev, my_cdev[i].dev_no, count);
+        cdev_init(&mycdev[i].dev, &my_fops);
+        register_chrdev_region(mycdev[i].dev_no, count, MYDEV_NAME);
+        cdev_add(&mycdev[i].dev, mycdev[i].dev_no, count);
     }
     
 	return 0;
@@ -97,23 +96,23 @@ cleanup:
     
     for (int i = clean_count; i >= 0; i--) {
         
-        cdev_del(mycdev[i].dev);
-        device_destory(dev_class, mycdev[i].dev_no);
+        cdev_del(&mycdev[i].dev);
+        device_destroy(dev_class, mycdev[i].dev_no);
     }
-    class_destory(dev_class);
+    class_destroy(dev_class);
     kfree(mycdev);
 
     return -1;
 }
 
-static inline void cleanup_resources() {
+void cleanup_resources(void) {
 
     for (int i = 0; i < numdevices; i++) {
 
-        cdev_del(mycdev[i].dev);
-        device_destory(dev_class, mycdev[i].dev_no);
+        cdev_del(&mycdev[i].dev);
+        device_destroy(dev_class, mycdev[i].dev_no);
         kfree(mycdev[i].ramdisk);
-        unregister_chrdev_region(my_cdev[i].dev_no, count);
+        unregister_chrdev_region(mycdev[i].dev_no, count);
     }
     kfree(mycdev);
 }
@@ -124,7 +123,7 @@ static void __exit my_exit(void)
 	pr_info("\nShreyas Ganesh device unregistered\n");
 }
 
-loff_t my_lseek(struct file *flip, loff_t offset, int whence) {
+static loff_t my_lseek(struct file *flip, loff_t offset, int whence) {
 
     struct asp_mycdev *dev = flip->private_data;
 
@@ -139,13 +138,13 @@ loff_t my_lseek(struct file *flip, loff_t offset, int whence) {
                 } else {
 
                     char *tmp;
-                    if (tmp = (krealloc(dev->ramdisk, offset, GFP_KERNEL)) == NULL) {
+                    if ((tmp = krealloc(dev->ramdisk, offset, GFP_KERNEL)) == NULL) {
 
                         dev->ramdisk = tmp;
                         pr_err("Realloc failed in offset change\n");
                     }
                     
-                    char *tempptr = dev->ramdisk + dev->ramsize;
+                    char *tmpptr = dev->ramdisk + dev->ramsize;
                     for (int i = dev->ramsize; i < offset; i++) {// '0'ing out
 
                         *tmpptr = 0;
@@ -162,17 +161,17 @@ loff_t my_lseek(struct file *flip, loff_t offset, int whence) {
             {
                 if (((offset + flip->f_pos) < dev->ramsize) || (offset < 0)) {
 
-                    fiip->f_pos += offset;
+                    flip->f_pos += offset;
                 } else {
 
                     char *tmp;
                     if ((tmp = krealloc(dev->ramdisk, offset + flip->f_pos, GFP_KERNEL)) == NULL) {
 
-                        dev->ramdisk = tmp;
                         pr_err("Realloc failed in offset change\n");
                     }
+                        dev->ramdisk = tmp;
 
-                    char *tempptr = dev->ramdisk + dev->ramsize;
+                    char *tmpptr = dev->ramdisk + dev->ramsize;
                     for (int i = dev->ramsize; i < offset + flip->f_pos; i++) {// '0'ing out
 
                         *tmpptr = 0;
@@ -188,12 +187,14 @@ loff_t my_lseek(struct file *flip, loff_t offset, int whence) {
         case SEEK_END:
             {
                 
-                if ((dev->ramdisk = krealloc(dev->ramdisk, offset + dev->ramsize, GFP_KERNEL)) != NULL) {
+		char *tmp;
+                if ((tmp = krealloc(dev->ramdisk, offset + dev->ramsize, GFP_KERNEL)) == NULL) {
 
                     pr_err("Realloc failed in offset change\n");
                 }
+			dev->ramdisk = tmp;
 
-                char *tempptr = dev->ramdisk + dev->ramsize;
+                char *tmpptr = dev->ramdisk + dev->ramsize;
                 for (int i = 0; i < offset; i++) {// '0'ing out
 
                     *tmpptr = 0;
@@ -216,7 +217,7 @@ loff_t my_lseek(struct file *flip, loff_t offset, int whence) {
 
 static int my_open(struct inode *inode, struct file *file)
 {
-    struct asp_mycdev *cdev = container_of(inode->i_cnode, struct asp_mycdev, dev);
+    struct asp_mycdev *cdev = container_of(inode->i_cdev, struct asp_mycdev, dev);
     file->private_data = cdev;
 
 	pr_info(" OPENING device: %s:\n\n", MYDEV_NAME);
@@ -244,7 +245,7 @@ static ssize_t my_read(struct file *file, char __user * buf, size_t lbuf, loff_t
 	}
 
 
-	nbytes = lbuf - copy_to_user(buf, ramdisk + *ppos, lbuf);
+	nbytes = lbuf - copy_to_user(buf, dev->ramdisk + *ppos, lbuf);
 	*ppos += nbytes;
 
     up(&dev->sem);
@@ -266,7 +267,7 @@ static ssize_t my_write(struct file *file, const char __user * buf, size_t lbuf,
         up(&dev->sem);
 		return 0;
 	}
-	nbytes = lbuf - copy_from_user(ramdisk + *ppos, buf, lbuf);
+	nbytes = lbuf - copy_from_user(dev->ramdisk + *ppos, buf, lbuf);
 	*ppos += nbytes;
 
     up(&dev->sem);
@@ -277,3 +278,6 @@ static ssize_t my_write(struct file *file, const char __user * buf, size_t lbuf,
 
 module_init(my_init);
 module_exit(my_exit);
+
+MODULE_AUTHOR("user");
+MODULE_LICENSE("GPL v2");
