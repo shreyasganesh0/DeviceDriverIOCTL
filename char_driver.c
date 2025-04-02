@@ -269,7 +269,7 @@ static ssize_t my_read(struct file *file, char __user * buf, size_t lbuf, loff_t
 
     up(&dev->sem);
 
-	pr_info("\n READING function, nbytes=%d, pos=%d lbuf=%d\n", nbytes, (int)*ppos, lbuf);
+	pr_info("\n READING function, nbytes=%d, pos=%d lbuf=%zu\n", nbytes, (int)*ppos, lbuf);
 	return nbytes;
 }
 
