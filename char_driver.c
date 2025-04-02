@@ -77,6 +77,8 @@ static int __init my_init(void) {
         return PTR_ERR(dev_class);
     }
 
+    dev_t first = MKDEV(majorno, 0);
+    register_chrdev_region(first, numdevices, MYDEV_NAME);
     for (int i = 0; i < numdevices; i++) {//create nodes loop
 
        mycdev[i].dev_no = MKDEV(majorno, i); 
@@ -90,6 +92,7 @@ static int __init my_init(void) {
         }
         mycdev[i].ramsize = size; 
         mycdev[i].ramdisk = kmalloc(size, GFP_KERNEL);
+	sema_init(&mycdev[i].sem, 1);
 	if (mycdev[i].ramdisk == NULL) {
 
            clean_count = i;
@@ -97,7 +100,6 @@ static int __init my_init(void) {
 	}
 
         cdev_init(&mycdev[i].dev, &my_fops);
-        register_chrdev_region(mycdev[i].dev_no, count, MYDEV_NAME);
         cdev_add(&mycdev[i].dev, mycdev[i].dev_no, count);
     }
 
@@ -118,12 +120,12 @@ cleanup:
 
 void cleanup_resources(void) {
 
+    unregister_chrdev_region(mycdev[0].dev_no, numdevices);
     for (int i = 0; i < numdevices; i++) {
 
         cdev_del(&mycdev[i].dev);
         device_destroy(dev_class, mycdev[i].dev_no);
         kfree(mycdev[i].ramdisk);
-        unregister_chrdev_region(mycdev[i].dev_no, count);
     }
     class_destroy(dev_class);
     kfree(mycdev);
@@ -152,9 +154,11 @@ static loff_t my_lseek(struct file *flip, loff_t offset, int whence) {
                     char *tmp;
                     if ((tmp = krealloc(dev->ramdisk, offset, GFP_KERNEL)) == NULL) {
 
-                        dev->ramdisk = tmp;
                         pr_err("Realloc failed in offset change\n");
+			    up(&dev->sem);
+			return -ENOMEM;
                     }
+                        dev->ramdisk = tmp;
                     
                     char *tmpptr = dev->ramdisk + dev->ramsize;
                     for (int i = dev->ramsize; i < offset; i++) {// '0'ing out
@@ -178,8 +182,9 @@ static loff_t my_lseek(struct file *flip, loff_t offset, int whence) {
 
                     char *tmp;
                     if ((tmp = krealloc(dev->ramdisk, offset + flip->f_pos, GFP_KERNEL)) == NULL) {
-
                         pr_err("Realloc failed in offset change\n");
+			    up(&dev->sem);
+			return -ENOMEM;
                     }
                         dev->ramdisk = tmp;
 
@@ -203,6 +208,8 @@ static loff_t my_lseek(struct file *flip, loff_t offset, int whence) {
                 if ((tmp = krealloc(dev->ramdisk, offset + dev->ramsize, GFP_KERNEL)) == NULL) {
 
                     pr_err("Realloc failed in offset change\n");
+		    up(&dev->sem);
+			return -ENOMEM;
                 }
 			dev->ramdisk = tmp;
 
