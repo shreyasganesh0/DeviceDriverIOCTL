@@ -146,7 +146,12 @@ static loff_t my_lseek(struct file *flip, loff_t offset, int whence) {
     switch (whence) {
         case SEEK_SET:
             {
-                if ((size < offset) || (offset < 0)) {
+		if (offset < 0) {
+
+			up(&dev->sem);
+			return -EINVAL;
+		}
+                if ((dev->ramsize > offset)) {
 
                     flip->f_pos = offset;
                 } else {
@@ -175,7 +180,12 @@ static loff_t my_lseek(struct file *flip, loff_t offset, int whence) {
             }
         case SEEK_CUR:
             {
-                if (((offset + flip->f_pos) < dev->ramsize) || (offset < 0)) {
+		if ((offset + flip->f_pos) < 0) {
+
+			up(&dev->sem);
+			return -EINVAL;
+		}
+                if (((offset + flip->f_pos) < dev->ramsize)) {
 
                     flip->f_pos += offset;
                 } else {
@@ -204,6 +214,11 @@ static loff_t my_lseek(struct file *flip, loff_t offset, int whence) {
         case SEEK_END:
             {
                 
+		if ((offset + dev->ramsize) < 0) {
+
+			up(&dev->sem);
+			return -EINVAL;
+		}
 		char *tmp;
                 if ((tmp = krealloc(dev->ramdisk, offset + dev->ramsize, GFP_KERNEL)) == NULL) {
 
