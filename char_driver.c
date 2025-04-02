@@ -8,6 +8,18 @@
 
 #include "defines.h"
 
+int majorno = 500;
+int numdevices = 3;
+int size = 16*4096;
+module_param(numdevices, int, S_IRUGO);
+module_param(majorno, int, S_IRUGO);
+module_param(size, int, S_IRUGO);
+int count = 1;
+int clean_count = 0;
+
+static struct class *dev_class;
+static struct asp_mycdev *mycdev;
+
 static struct file_operations my_fops = {
     .owner = THIS_MODULE,
     .open = my_open,
@@ -54,9 +66,6 @@ static long my_ioctl(struct file *flip, unsigned int cmd, unsigned long arg) {
 
 static int __init my_init(void) {
 
-    module_param(numdevices, int, S_IRUGO);
-    module_param(majorno, int, S_IRUGO);
-    module_param(size, int, S_IRUGO);
 
     mycdev = kmalloc(numdevices * sizeof(struct asp_mycdev), GFP_KERNEL); 
 
@@ -72,7 +81,7 @@ static int __init my_init(void) {
 
        mycdev[i].dev_no = MKDEV(majorno, i); 
 
-       struct device *dev = device_create(dev_class, NULL, mycdev[i].dev_no, NULL, "DEV_PATH%d", i);
+       struct device *dev = device_create(dev_class, NULL, mycdev[i].dev_no, NULL, "mycdrv%d", i);
        if (IS_ERR(dev)) {
 
            clean_count = i;
@@ -114,6 +123,7 @@ void cleanup_resources(void) {
         kfree(mycdev[i].ramdisk);
         unregister_chrdev_region(mycdev[i].dev_no, count);
     }
+    class_destroy(dev_class);
     kfree(mycdev);
 }
 

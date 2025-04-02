@@ -11,14 +11,6 @@
 #define ASP_CLEAR_BUF _IO(ASP_IOC_MAGIC, 1)
 #define ASP_IOC_MAXNR 5
 
-int majorno = MAJOR_NUM;
-int numdevices = NUM_DEVS;
-int size = RAMDISK_SIZE;
-static int count = 1;
-static int clean_count = 0;
-
-static struct class *dev_class;
-static struct asp_mycdev *mycdev;
 
 struct asp_mycdev {
     struct cdev dev;
