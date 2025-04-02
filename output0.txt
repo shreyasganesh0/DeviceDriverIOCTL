@@ -1,1 +1,0 @@
-[Device 0] Error clearing the buffer : Inappropriate ioctl for device

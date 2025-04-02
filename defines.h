@@ -7,7 +7,7 @@
 #define DEV_PATH "/dev/mydev"
 #define RAMDISK_SIZE (size_t) (16*PAGE_SIZE)
 
-#define ASP_IOC_MAGIC 'k'
+#define ASP_IOC_MAGIC 'Z'
 #define ASP_CLEAR_BUF _IO(ASP_IOC_MAGIC, 1)
 #define ASP_IOC_MAXNR 5
 

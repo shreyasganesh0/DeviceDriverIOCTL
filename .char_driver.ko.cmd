@@ -1,0 +1,1 @@
+savedcmd_/home/ShreyasGanesh/Projects/DeviceDriverIOCTL/char_driver.ko := ld -r -EL  -maarch64elf -z noexecstack --no-warn-rwx-segments --build-id=sha1  -T scripts/module.lds -o /home/ShreyasGanesh/Projects/DeviceDriverIOCTL/char_driver.ko /home/ShreyasGanesh/Projects/DeviceDriverIOCTL/char_driver.o /home/ShreyasGanesh/Projects/DeviceDriverIOCTL/char_driver.mod.o

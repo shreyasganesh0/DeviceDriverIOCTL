@@ -88,24 +88,26 @@ static int __init my_init(void) {
            pr_err("Error creating node for %d\n", i);
            goto cleanup; //cleanup handling for device removal
         }
-    }
-
-    for (int i = 0; i < numdevices; i++) {
-
         mycdev[i].ramsize = size; 
         mycdev[i].ramdisk = kmalloc(size, GFP_KERNEL);
+	if (mycdev[i].ramdisk == NULL) {
+
+           clean_count = i;
+		goto cleanup;
+	}
 
         cdev_init(&mycdev[i].dev, &my_fops);
         register_chrdev_region(mycdev[i].dev_no, count, MYDEV_NAME);
         cdev_add(&mycdev[i].dev, mycdev[i].dev_no, count);
     }
-    
+
 	return 0;
 cleanup:
     
     for (int i = clean_count; i >= 0; i--) {
         
         cdev_del(&mycdev[i].dev);
+	kfree(mycdev[i].ramdisk);
         device_destroy(dev_class, mycdev[i].dev_no);
     }
     class_destroy(dev_class);
